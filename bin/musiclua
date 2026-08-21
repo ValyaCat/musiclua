@@ -1,0 +1,180 @@
+#!/usr/bin/env lua
+-- bin/musiclua
+-- Command-line entry point for musiclua
+
+local version = require("musiclua.version")
+
+local function usage()
+    print("musiclua " .. version.string)
+    print("")
+    print("Usage:")
+    print("  musiclua [options] [directory|.m3u file]")
+    print("  musiclua play-url <url>          Play a direct audio URL")
+    print("  musiclua add-rss <feed_url>       Import RSS/Podcast feed into TUI")
+    print("  musiclua version                  Print version and exit")
+    print("")
+    print("Options:")
+    print("  -h, --help         Show this help message")
+    print("  -v, --version      Show version")
+    print("  --volume N         Set initial volume (0-100, default 80)")
+    print("  --recursive        Scan subdirectories recursively")
+    print("  --sort MODE        Sort tracks: title|artist|album|date|path")
+    print("  --mode MODE        Play mode: sequential|repeat-all|repeat-one|shuffle")
+    print("  --verbose          Enable verbose (debug) logging")
+    print("")
+    print("Examples:")
+    print("  musiclua ~/Music                          Scan and play local music")
+    print("  musiclua --recursive ~/Music              Recursive scan")
+    print("  musiclua playlist.m3u                     Import M3U playlist")
+    print("  musiclua play-url https://example.com/a.mp3  Stream a URL")
+    print("  musiclua add-rss https://example.com/feed.rss  Add podcast feed")
+end
+
+-- Parse arguments
+local args = {
+    directory  = nil,
+    volume     = nil,
+    log_level  = nil,
+    recursive  = nil,
+    sort       = nil,
+    play_mode  = nil,
+    command    = nil,  -- subcommand: nil | "play-url" | "add-rss"
+    sub_arg    = nil,  -- argument for subcommand (url or feed url)
+}
+
+local i = 1
+while i <= #arg do
+    local a = arg[i]
+    if a == "-h" or a == "--help" then
+        usage()
+        os.exit(0)
+    elseif a == "-v" or a == "--version" then
+        print("musiclua " .. version.string)
+        os.exit(0)
+    elseif a == "version" then
+        print("musiclua " .. version.string)
+        os.exit(0)
+    elseif a == "play-url" then
+        args.command = "play-url"
+        i = i + 1
+        args.sub_arg = arg[i]
+        if not args.sub_arg then
+            io.stderr:write("Error: play-url requires a URL argument\n")
+            os.exit(1)
+        end
+    elseif a == "add-rss" then
+        args.command = "add-rss"
+        i = i + 1
+        args.sub_arg = arg[i]
+        if not args.sub_arg then
+            io.stderr:write("Error: add-rss requires a feed URL argument\n")
+            os.exit(1)
+        end
+    elseif a == "--volume" then
+        i = i + 1
+        args.volume = tonumber(arg[i]) or 80
+    elseif a == "--recursive" then
+        args.recursive = true
+    elseif a == "--sort" then
+        i = i + 1
+        args.sort = arg[i]
+    elseif a == "--mode" then
+        i = i + 1
+        args.play_mode = arg[i]
+    elseif a == "--verbose" then
+        args.log_level = "debug"
+    elseif a:sub(1, 1) ~= "-" then
+        args.directory = a
+    else
+        io.stderr:write("Unknown option: " .. a .. "\n")
+        usage()
+        os.exit(1)
+    end
+    i = i + 1
+end
+
+-- Handle subcommands
+if args.command == "play-url" then
+    -- Quick-play a URL: fetch the URL source, create a playlist, launch TUI
+    local Playlist = require("musiclua.playlist")
+    local sources  = require("musiclua.sources")
+    local players  = require("musiclua.players")
+    local tui      = require("musiclua.tui")
+    local config   = require("musiclua.config")
+
+    local cfg = config.load()
+    config.apply_cli(cfg, args)
+
+    local url_src = sources.get("url")
+    if not url_src then
+        io.stderr:write("Error: URL source not available\n")
+        os.exit(1)
+    end
+
+    local tracks, err = url_src.scan(args.sub_arg)
+    if not tracks then
+        io.stderr:write("Error: " .. tostring(err) .. "\n")
+        os.exit(1)
+    end
+
+    local playlist = Playlist.new(tracks)
+    local player = players.create(cfg.player, { volume = cfg.mpv.volume })
+    playlist:set_playing_to_selected()
+    player:load(tracks[1])
+    player:play()
+
+    local ok, tui_err = pcall(tui.run, { playlist = playlist, player = player })
+    pcall(function() player:close() end)
+    if not ok then
+        io.stderr:write("TUI error: " .. tostring(tui_err) .. "\n")
+        os.exit(1)
+    end
+    os.exit(0)
+end
+
+if args.command == "add-rss" then
+    -- Fetch RSS feed, cache audio locally, then launch TUI with those tracks
+    local Playlist = require("musiclua.playlist")
+    local sources  = require("musiclua.sources")
+    local players  = require("musiclua.players")
+    local tui      = require("musiclua.tui")
+    local config   = require("musiclua.config")
+
+    local cfg = config.load()
+    config.apply_cli(cfg, args)
+
+    local rss_src = sources.get("rss")
+    if not rss_src then
+        io.stderr:write("Error: RSS source not available\n")
+        os.exit(1)
+    end
+
+    io.write("Fetching RSS feed (this may take a moment)...\n")
+    local tracks, err = rss_src.scan_and_cache(args.sub_arg, cfg.cache_dir)
+    if not tracks then
+        io.stderr:write("Error: " .. tostring(err) .. "\n")
+        os.exit(1)
+    end
+
+    if #tracks == 0 then
+        io.stderr:write("No audio entries found in the RSS feed.\n")
+        os.exit(1)
+    end
+
+    io.write(string.format("Found %d audio entries.\n", #tracks))
+
+    local playlist = Playlist.new(tracks)
+    local player = players.create(cfg.player, { volume = cfg.mpv.volume })
+
+    local ok, tui_err = pcall(tui.run, { playlist = playlist, player = player })
+    pcall(function() player:close() end)
+    if not ok then
+        io.stderr:write("TUI error: " .. tostring(tui_err) .. "\n")
+        os.exit(1)
+    end
+    os.exit(0)
+end
+
+-- Default: launch the full application
+local app = require("musiclua.app")
+app.run(args)
