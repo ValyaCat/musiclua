@@ -14,6 +14,10 @@ description = {
         It supports mp3, ogg, wav, flac, m4a, aac, opus, and wma formats.
         Features include M3U playlist import, RSS/Podcast feeds, URL streaming,
         play modes (sequential, repeat-all, repeat-one, shuffle), and sortable library.
+
+        Optional dependencies:
+        - lua-curses: required for TUI mode (install manually if not available for your Lua version)
+        - luasec: required for HTTPS support (RSS feeds, URL streaming)
     ]],
     homepage = "https://github.com/ValyaCat/musiclua",
     license  = "MIT",
@@ -23,9 +27,15 @@ dependencies = {
     "lua >= 5.1",
     "luafilesystem >= 1.8",
     "luasocket >= 3.0",
-    "luasec >= 1.1",
     "dkjson >= 2.5",
-    "lua-curses >= 20200724",
+}
+
+test_dependencies = {
+    "busted >= 2.0",
+}
+
+test = {
+    type = "busted",
 }
 
 build = {
