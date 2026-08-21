@@ -1,5 +1,6 @@
 package = "musiclua"
 version = "0.3.0-2"
+rockspec_format = "3.0"
 
 source = {
     url = "git://github.com/ValyaCat/musiclua.git",
