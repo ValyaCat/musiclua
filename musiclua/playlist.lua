@@ -210,7 +210,10 @@ end
 
 --- Mark the current selected track as the playing track.
 function Playlist:set_playing_to_selected()
-    self._playing_index = self._selected_index
+    local n = self:count()
+    if n > 0 and self._selected_index >= 1 and self._selected_index <= n then
+        self._playing_index = self._selected_index
+    end
 end
 
 ---------------------------------------------------------------------------
@@ -342,8 +345,10 @@ function Playlist:_ensure_shuffle()
 end
 
 function Playlist:_matches(t, keyword)
-    if not t or not t.title then return false end
-    return t.title:lower():find(keyword, 1, true) ~= nil
+    if not t then return false end
+    local title = t.title
+    if not title or type(title) ~= "string" then return false end
+    return title:lower():find(keyword, 1, true) ~= nil
 end
 
 function Playlist:_clamp_index()

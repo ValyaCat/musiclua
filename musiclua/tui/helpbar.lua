@@ -1,30 +1,54 @@
 -- musiclua/tui/helpbar.lua
--- Help bar component showing key bindings
+-- Help bar component showing key bindings with styled keys
 
 local helpbar = {}
 
---- Default help text for normal mode.
-helpbar.NORMAL_HELP = "[enter] play  [space] pause  [n] next  [p] prev  [m] mode  [/] search  [+/-] vol  [q] quit"
+--- Help entries as { key, action } pairs for normal mode.
+local NORMAL_KEYS = {
+    {"enter", "play"},
+    {"space", "pause"},
+    {"n", "next"},
+    {"p", "prev"},
+    {"m", "mode"},
+    {"/", "search"},
+    {"+/-", "vol"},
+    {"q", "quit"},
+}
 
---- Help text shown while in search mode.
-helpbar.SEARCH_HELP = "[enter] confirm  [esc] cancel  [backspace] delete"
+--- Help entries for search mode.
+local SEARCH_KEYS = {
+    {"enter", "confirm"},
+    {"esc", "cancel"},
+    {"bs", "delete"},
+}
 
 --- Draw the help bar on the last row of the screen.
--- @param scr     screen object
--- @param mode    string  "normal" or "search"
--- @param theme   theme table
 function helpbar.draw(scr, mode, theme)
     local rows, cols = scr:size()
     local help_row = rows
     scr:clear_line(help_row)
 
-    local text = (mode == "search") and helpbar.SEARCH_HELP or helpbar.NORMAL_HELP
-    if #text > cols then
-        text = text:sub(1, cols)
-    end
+    local keys = (mode == "search") and SEARCH_KEYS or NORMAL_KEYS
+    local col = 2  -- start with 1-space indent
 
-    scr:set_color(theme.color_help)
-    scr:write(help_row, 1, text)
+    for i, entry in ipairs(keys) do
+        local key, action = entry[1], entry[2]
+        -- Key name in bright color
+        scr:set_color(theme.color_key)
+        scr:write(help_row, col, key)
+        col = col + #key
+        -- Action in dim color
+        scr:set_color(theme.color_dim)
+        local action_text = " " .. action
+        scr:write(help_row, col, action_text)
+        col = col + #action_text
+        -- Separator between entries
+        if i < #keys then
+            scr:write(help_row, col, "  ")
+            col = col + 2
+        end
+        if col >= cols - 2 then break end
+    end
     scr:set_color(0)
 end
 

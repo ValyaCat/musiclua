@@ -9,6 +9,7 @@ local function usage()
     print("")
     print("Usage:")
     print("  musiclua [options] [directory|.m3u file]")
+    print("  musiclua scan <directory>           Scan directory and list tracks")
     print("  musiclua play-url <url>          Play a direct audio URL")
     print("  musiclua add-rss <feed_url>       Import RSS/Podcast feed into TUI")
     print("  musiclua version                  Print version and exit")
@@ -70,16 +71,37 @@ while i <= #arg do
             io.stderr:write("Error: add-rss requires a feed URL argument\n")
             os.exit(1)
         end
+    elseif a == "scan" then
+        args.command = "scan"
+        i = i + 1
+        args.sub_arg = arg[i]
+        if not args.sub_arg then
+            io.stderr:write("Error: scan requires a directory argument\n")
+            os.exit(1)
+        end
     elseif a == "--volume" then
         i = i + 1
-        args.volume = tonumber(arg[i]) or 80
+        local v = tonumber(arg[i])
+        if not v or v < 0 or v > 100 then
+            io.stderr:write("Error: --volume requires a number between 0 and 100\n")
+            os.exit(1)
+        end
+        args.volume = v
     elseif a == "--recursive" then
         args.recursive = true
     elseif a == "--sort" then
         i = i + 1
+        if not arg[i] then
+            io.stderr:write("Error: --sort requires a mode: title|artist|album|date|path\n")
+            os.exit(1)
+        end
         args.sort = arg[i]
     elseif a == "--mode" then
         i = i + 1
+        if not arg[i] then
+            io.stderr:write("Error: --mode requires a mode: sequential|repeat-all|repeat-one|shuffle\n")
+            os.exit(1)
+        end
         args.play_mode = arg[i]
     elseif a == "--verbose" then
         args.log_level = "debug"
@@ -176,5 +198,62 @@ if args.command == "add-rss" then
 end
 
 -- Default: launch the full application
+
+-- Handle scan subcommand
+if args.command == "scan" then
+    local sources = require("musiclua.sources")
+    local fs      = require("musiclua.util.fs")
+
+    local dir = fs.expand_user(args.sub_arg)
+    if not fs.is_dir(dir) then
+        io.stderr:write("Error: not a directory: " .. dir .. "\n")
+        os.exit(1)
+    end
+
+    local local_src = sources.get("local_dir")
+    if not local_src then
+        io.stderr:write("Error: local_dir source not available\n")
+        os.exit(1)
+    end
+
+    local tracks, err = local_src.scan(dir, {
+        extensions = { ".mp3", ".flac", ".ogg", ".wav", ".aac", ".m4a", ".opus", ".wma" },
+        recursive  = args.recursive,
+    })
+    if not tracks then
+        io.stderr:write("Error: " .. tostring(err) .. "\n")
+        os.exit(1)
+    end
+
+    -- Sort if requested
+    if args.sort then
+        local library = require("musiclua.library")
+        tracks = library.sort_tracks(tracks, args.sort)
+    end
+
+    io.write(string.format("Found %d track(s) in %s\n\n", #tracks, dir))
+    for i, t in ipairs(tracks) do
+        io.write(string.format("  %3d  %s\n", i, t.title or t.path))
+    end
+    if #tracks == 0 then
+        io.write("  (no audio files found)\n")
+    end
+    os.exit(0)
+end
+
+-- Default: launch the full application
+-- If TUI (curses) is not available, fall back to simple CLI playback
 local app = require("musiclua.app")
-app.run(args)
+local ok, err = pcall(app.run, args)
+if not ok then
+    local err_str = tostring(err)
+    if err_str:find("lua%-curses") or err_str:find("curses")
+        or err_str:find("luasystem") then
+        -- Fallback: simple CLI player without TUI
+        io.write("Note: TUI not available (curses missing), using CLI mode\n\n")
+        app.run_cli(args)
+    else
+        io.stderr:write("Error: " .. err_str .. "\n")
+        os.exit(1)
+    end
+end

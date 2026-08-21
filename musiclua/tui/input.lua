@@ -1,71 +1,92 @@
 -- musiclua/tui/input.lua
--- Input handling: maps key codes to action strings
+-- Input handling: maps key strings (from ANSI backend) to action strings
 
 local input = {}
 
--- ASCII codes
-input.KEY_ENTER  = 10
-input.KEY_ESC    = 27
-input.KEY_SPACE  = 32
-input.KEY_SLASH  = 47
-input.KEY_PLUS   = 43
-input.KEY_MINUS  = 45
-input.KEY_q      = 113
-input.KEY_Q      = 81
-input.KEY_j      = 106
-input.KEY_k      = 107
-input.KEY_n      = 110
-input.KEY_p      = 112
-input.KEY_m      = 109  -- cycle play mode
-input.KEY_BACKSPACE = 127
-input.KEY_CTRL_H    = 8   -- also backspace on some terminals
+-- Well-known key strings (ANSI backend returns these)
+input.KEY_ENTER     = "\n"
+input.KEY_ESC       = "\27"
+input.KEY_BACKSPACE = "\127"     -- DEL
+input.KEY_CTRL_H    = "\8"       -- Ctrl-H (also backspace on some terminals)
 
---- Map a raw key code to an action string.
--- @param key   number   key code from screen:getch()
--- @param curses_mod table  the curses module (for KEY_UP, KEY_DOWN, etc.)
+--- Map a raw key + keytype to an action string.
+-- With the ANSI backend, key is a string and keytype is "ctrl"|"char"|"ansi".
+-- @param key     string  key from screen:getch()
+-- @param keytype string  "ctrl", "char", or "ansi" (from readansi)
+-- @param curses_keys table  unused (kept for API compat)
 -- @return string|nil  action name
-function input.map_key(key, curses_mod)
+function input.map_key(key, curses_keys, keytype)
     if key == nil then return nil end
 
-    -- Navigation
-    if key == input.KEY_j then return "down" end
-    if key == input.KEY_k then return "up" end
-    if curses_mod then
-        if key == curses_mod.KEY_DOWN then return "down" end
-        if key == curses_mod.KEY_UP   then return "up" end
+    -- ANSI escape sequences (arrow keys etc.)
+    if keytype == "ansi" then
+        -- readansi classifies standalone ESC as "ansi" (not "ctrl")
+        -- Handle bare ESC: byte 27, possibly with trailing bytes
+        if key:byte(1) == 27 then
+            if #key == 1 then return "esc" end
+            -- ESC followed by newline from stdin pipe
+            if #key == 2 and key:byte(2) == 10 then return "esc" end
+        end
+
+        local scr = curses_keys
+        if scr then
+            if key == scr.KEY_DOWN  then return "down" end
+            if key == scr.KEY_UP    then return "up" end
+            if key == scr.KEY_RIGHT then return "right" end
+            if key == scr.KEY_LEFT  then return "left" end
+        end
+        -- Fallback: match raw ANSI sequences directly
+        if key == "\27[B" then return "down" end
+        if key == "\27[A" then return "up" end
+        if key == "\27[C" then return "right" end
+        if key == "\27[D" then return "left" end
+        return nil
     end
 
-    -- Actions
-    if key == input.KEY_ENTER then return "play" end
-    if key == input.KEY_SPACE then return "toggle" end
-    if key == input.KEY_n     then return "next" end
-    if key == input.KEY_p     then return "prev" end
-    if key == input.KEY_m     then return "mode" end
-    if key == input.KEY_SLASH then return "search" end
-    if key == input.KEY_PLUS  then return "vol_up" end
-    if key == input.KEY_MINUS then return "vol_down" end
-    if key == input.KEY_q or key == input.KEY_Q then return "quit" end
-    if key == input.KEY_ESC then return "esc" end
-
-    -- Backspace
-    if key == input.KEY_BACKSPACE or key == input.KEY_CTRL_H then
-        return "backspace"
+    -- Control characters
+    if keytype == "ctrl" then
+        if key == "\n" or key == "\r" then return "play" end
+        if key == "\27" then return "esc" end
+        if key == "\8"  then return "backspace" end
+        if key == "\127" then return "backspace" end
+        local byte = key:byte(1)
+        if byte == 32 then return "toggle" end
+        return nil
     end
 
-    -- Printable ASCII character (for search input)
-    if key >= 32 and key <= 126 then
-        return "char"
-    end
+    -- Regular printable characters (keytype == "char")
+    if key == " " then return "toggle" end
+    if key == "/" then return "search" end
+    if key == "+" or key == "=" then return "vol_up" end
+    if key == "-" then return "vol_down" end
+    if key == "j" then return "down" end
+    if key == "k" then return "up" end
+    if key == "n" then return "next" end
+    if key == "p" then return "prev" end
+    if key == "m" then return "mode" end
+    if key == "s" then return "stop" end
+    if key == "r" then return "refresh" end
+    if key == "d" then return "delete" end
+    if key == "c" then return "clear" end
+    if key == "?" then return "help" end
+    if key == "q" or key == "Q" then return "quit" end
 
-    return nil
+    -- Printable character (for search input etc.)
+    return "char"
 end
 
---- Return the ASCII character for a key code.
--- @param key number
+--- Return the character string for a printable key.
+-- With the ANSI backend, the key is already the character string.
+-- @param key string
+-- @param keytype string
 -- @return string|nil
-function input.char_for(key)
-    if key and key >= 32 and key <= 126 then
-        return string.char(key)
+function input.char_for(key, keytype)
+    if key and keytype == "char" then
+        -- Only return printable characters (not control chars)
+        local byte = key:byte(1)
+        if byte and byte >= 32 then
+            return key
+        end
     end
     return nil
 end

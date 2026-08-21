@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Lua
+*.luac
+lua_modules/
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Build artifacts (regeneratable)
+*.rock
+!rockspecs/
+
+# Temporary files
+/tmp/
+*.tmp

@@ -12,7 +12,7 @@ config.defaults = {
         "~/Music",
     },
     audio_extensions = {
-        ".mp3", ".ogg", ".wav", ".flac", ".m4a", ".opus",
+        ".mp3", ".ogg", ".wav", ".flac", ".m4a", ".aac", ".opus", ".wma",
     },
     player    = "mpv",
     recursive = false,        -- scan subdirectories
@@ -32,14 +32,19 @@ config.defaults = {
     log_level = "warn",
 }
 
---- Deep-merge user config over defaults (one level deep for nested tables).
+--- Deep-merge user config over defaults (recursive).
 -- @param base  table  defaults
 -- @param over  table  user overrides
 -- @return table merged result
 local function deep_merge(base, over)
     local result = {}
     for k, v in pairs(base) do
-        result[k] = v
+        if type(v) == "table" then
+            result[k] = {}  -- shallow copy base table
+            for k2, v2 in pairs(v) do result[k][k2] = v2 end
+        else
+            result[k] = v
+        end
     end
     for k, v in pairs(over) do
         if type(v) == "table" and type(result[k]) == "table" then
