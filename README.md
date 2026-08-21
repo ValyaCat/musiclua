@@ -21,7 +21,6 @@ A modular, extensible terminal music player written in Lua.
 - mpv (for audio playback)
 - LuaRocks packages:
   - `luafilesystem` — directory scanning
-  - `lua-curses` — terminal UI
   - `luasocket` — networking
   - `luasec` — HTTPS support
   - `dkjson` — JSON parsing
@@ -34,7 +33,6 @@ brew install mpv
 
 # Install Lua dependencies
 luarocks install luafilesystem
-luarocks install lua-curses
 luarocks install luasocket
 luarocks install luasec
 luarocks install dkjson
@@ -162,57 +160,6 @@ musiclua/
 ├── examples/          # Example scripts
 ├── spec/              # Test suite
 └── rockspecs/         # LuaRocks package spec
-```
-
-## Publishing to LuaRocks
-
-### Step 1: Prepare GitHub Repository
-
-```sh
-# Create a new repo on GitHub, then:
-git init
-git add .
-git commit -m "Initial release v0.3.0"
-git branch -M main
-git remote add origin https://github.com/ValyaCat/musiclua.git
-git push -u origin main
-
-# Create a version tag
-git tag v0.3.0
-git push origin v0.3.0
-```
-
-### Step 2: Get LuaRocks API Key
-
-1. Sign up at https://luarocks.org
-2. Go to Settings → API Keys
-3. Generate a new API key
-4. Save it securely
-
-### Step 3: Verify Rockspec
-
-The rockspec files have been updated with your GitHub username (`ValyaCat`).
-Verify that both files in `rockspecs/` have the correct URLs.
-
-### Step 4: Upload to LuaRocks
-
-```sh
-# Install luarocks-upload tool (if not installed)
-luarocks install luarocks-upload
-
-# Upload the rockspec
-luarocks upload rockspecs/musiclua-0.3.0-1.rockspec --api-key=YOUR_API_KEY
-```
-
-### Step 5: Verify Installation
-
-```sh
-# Users can now install with:
-luarocks install musiclua
-
-# Or install the CLI:
-luarocks install musiclua
-musiclua play ~/Music
 ```
 
 ### Future Releases
