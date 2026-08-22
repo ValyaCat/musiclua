@@ -6,7 +6,6 @@ A modular, extensible terminal music player written in Lua.
 
 - **Local music scanning** — auto-scan directories for audio files (mp3, flac, ogg, wav, aac, m4a, opus, wma)
 - **Playback control** — play/pause, next/prev, seek, volume, progress bar
-- **Curses TUI** — keyboard-driven terminal interface with playlist view and metadata display
 - **Playlist modes** — sequential, repeat-all, repeat-one, shuffle
 - **Sorting** — by title, artist, album, date, or path
 - **M3U/M3U8 support** — load playlists with metadata
